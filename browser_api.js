@@ -118,9 +118,9 @@ class BrowserApi {
  */
 function createBrowserApi(opts) {
   let streamInfo = {
-    streamUrl: opts.originalURL,
+    streamUrl: opts.streamURL,
     originalUrl: opts.originalURL,
-    responseHeaders: {},
+    responseHeaders: opts.responseHeaders,
     embedded: window.parent != window,
     tabId: -1,
   };
