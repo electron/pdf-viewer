@@ -35,16 +35,6 @@ function SerializeKeyEvent(event) {
 }
 
 /**
- * An enum containing a value specifying whether the PDF is currently loading,
- * has finished loading or failed to load.
- */
-var LoadState = {
-  LOADING: 'loading',
-  SUCCESS: 'success',
-  FAILED: 'failed'
-};
-
-/**
  * Create a new PDFScriptingAPI. This provides a scripting interface to
  * the PDF viewer so that it can be customized by things like print preview.
  * @param {Window} window the window of the page containing the pdf viewer.

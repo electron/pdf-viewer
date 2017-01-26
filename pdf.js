@@ -5,6 +5,16 @@
 'use strict';
 
 /**
+ * An enum containing a value specifying whether the PDF is currently loading,
+ * has finished loading or failed to load.
+ */
+var LoadState = {
+  LOADING: 'loading',
+  SUCCESS: 'success',
+  FAILED: 'failed'
+};
+
+/**
  * @return {number} Width of a scrollbar in pixels
  */
 function getScrollbarWidth() {
