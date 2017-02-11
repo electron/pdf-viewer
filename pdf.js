@@ -50,22 +50,6 @@ function getFilenameFromURL(url) {
 }
 
 /**
- * Called when navigation happens in the current tab.
- * @param {string} url The url to be opened in the current tab.
- */
-function onNavigateInCurrentTab(url) {
-  window.location.href = url;
-}
-
-/**
- * Called when navigation happens in the new tab.
- * @param {string} url The url to be opened in the new tab.
- */
-function onNavigateInNewTab(url) {
-  window.open(url);
-}
-
-/**
  * Whether keydown events should currently be ignored. Events are ignored when
  * an editable element has focus, to allow for proper editing controls.
  * @param {HTMLElement} activeElement The currently selected DOM node.
@@ -127,7 +111,7 @@ function PDFViewer(browserApi) {
 
   this.delayedScriptingMessages_ = [];
 
-  this.isPrintPreview_ = this.originalUrl_.indexOf('chrome://print') == 0;
+  this.isPrintPreview_ = location.origin === 'chrome://print';
 
   // Parse open pdf parameters.
   this.paramsParser_ =
@@ -147,11 +131,9 @@ function PDFViewer(browserApi) {
                                         this.onPasswordSubmitted_.bind(this));
   this.errorScreen_ = $('error-screen');
   // Can only reload if we are in a normal tab.
-  if (!this.browserApi_.getStreamInfo().embedded) {
-    this.errorScreen_.reloadFn = function() {
-      chrome.send('reload');
-    };
-  }
+  this.errorScreen_.reloadFn = function() {
+    chrome.send('reload');
+  };
 
   // Create the viewport.
   var shortWindow = window.innerHeight < PDFViewer.TOOLBAR_WINDOW_MIN_HEIGHT;
@@ -198,9 +180,13 @@ function PDFViewer(browserApi) {
   this.plugin_.setAttribute('background-color', backgroundColor);
   this.plugin_.setAttribute('top-toolbar-height', topToolbarHeight);
 
-  if (!this.browserApi_.getStreamInfo().embedded)
+  if (this.browserApi_.getStreamInfo().embedded) {
+    this.plugin_.setAttribute('top-level-url',
+                              this.browserApi_.getStreamInfo().tabUrl);
+  } else {
     this.plugin_.setAttribute('full-frame', '');
-  this.sizer_.appendChild(this.plugin_);
+  }
+  document.body.appendChild(this.plugin_);
 
   // Setup the button event listeners.
   this.zoomToolbar_ = $('zoom-toolbar');
@@ -212,6 +198,15 @@ function PDFViewer(browserApi) {
       this.viewport_.zoomIn.bind(this.viewport_));
   this.zoomToolbar_.addEventListener('zoom-out',
       this.viewport_.zoomOut.bind(this.viewport_));
+
+  this.gestureDetector_ = new GestureDetector(this.plugin_);
+  this.gestureDetector_.addEventListener(
+      'pinchstart', this.viewport_.pinchZoomStart.bind(this.viewport_));
+  this.sentPinchEvent_ = false;
+  this.gestureDetector_.addEventListener(
+      'pinchupdate', this.onPinchUpdate_.bind(this));
+  this.gestureDetector_.addEventListener(
+      'pinchend', this.onPinchEnd_.bind(this));
 
   if (toolbarEnabled) {
     this.toolbar_ = $('toolbar');
@@ -254,10 +249,10 @@ function PDFViewer(browserApi) {
   document.addEventListener('mousemove', this.handleMouseEvent_.bind(this));
   document.addEventListener('mouseout', this.handleMouseEvent_.bind(this));
 
-  this.navigator_ = new Navigator(this.originalUrl_,
-                                  this.viewport_, this.paramsParser_,
-                                  onNavigateInCurrentTab,
-                                  onNavigateInNewTab);
+  var tabId = this.browserApi_.getStreamInfo().tabId;
+  this.navigator_ = new Navigator(
+      this.originalUrl_, this.viewport_, this.paramsParser_,
+      new NavigatorDelegate(tabId));
   this.viewportScroller_ =
       new ViewportScroller(this.viewport_, this.plugin_, window);
 
@@ -369,7 +364,7 @@ PDFViewer.prototype = {
           this.viewport.position = position;
         }
         return;
-      case 65:  // a key.
+      case 65:  // 'a' key.
         if (e.ctrlKey || e.metaKey) {
           this.plugin_.postMessage({
             type: 'selectAll'
@@ -378,17 +373,21 @@ PDFViewer.prototype = {
           e.preventDefault();
         }
         return;
-      case 71: // g key.
+      case 71: // 'g' key.
         if (this.toolbar_ && (e.ctrlKey || e.metaKey) && e.altKey) {
           this.toolbarManager_.showToolbars();
           this.toolbar_.selectPageNumber();
         }
         return;
-      case 219:  // left bracket.
+      case 219:  // Left bracket key.
         if (e.ctrlKey)
           this.rotateCounterClockwise_();
         return;
-      case 221:  // right bracket.
+      case 220:  // Backslash key.
+        if (e.ctrlKey)
+          this.zoomToolbar_.fitToggleFromHotKey();
+        return;
+      case 221:  // Right bracket key.
         if (e.ctrlKey)
           this.rotateClockwise_();
         return;
@@ -434,6 +433,10 @@ PDFViewer.prototype = {
     });
   },
 
+  /**
+   * @private
+   * Set zoom to "fit to page".
+   */
   fitToPage_: function() {
     this.viewport_.fitToPage();
     this.toolbarManager_.forceHideTopToolbar();
@@ -637,7 +640,7 @@ PDFViewer.prototype = {
         this.viewport_.position = position;
         break;
       case 'cancelStreamUrl':
-        //chrome.mimeHandlerPrivate.abortStream();
+        chrome.mimeHandlerPrivate.abortStream();
         break;
       case 'metadata':
         if (message.data.title) {
@@ -672,6 +675,19 @@ PDFViewer.prototype = {
     this.plugin_.postMessage({
       type: 'stopScrolling'
     });
+
+    if (this.viewport_.pinchPhase == Viewport.PinchPhase.PINCH_START) {
+      var position = this.viewport_.position;
+      var zoom = this.viewport_.zoom;
+      var pinchPhase = this.viewport_.pinchPhase;
+      this.plugin_.postMessage({
+        type: 'viewport',
+        zoom: zoom,
+        xOffset: position.x,
+        yOffset: position.y,
+        pinchPhase: pinchPhase
+      });
+    }
   },
 
   /**
@@ -682,13 +698,51 @@ PDFViewer.prototype = {
   afterZoom_: function() {
     var position = this.viewport_.position;
     var zoom = this.viewport_.zoom;
+    var pinchVector = this.viewport_.pinchPanVector || {x: 0, y: 0};
+    var pinchCenter = this.viewport_.pinchCenter || {x: 0, y: 0};
+    var pinchPhase = this.viewport_.pinchPhase;
+
     this.plugin_.postMessage({
       type: 'viewport',
       zoom: zoom,
       xOffset: position.x,
-      yOffset: position.y
+      yOffset: position.y,
+      pinchPhase: pinchPhase,
+      pinchX: pinchCenter.x,
+      pinchY: pinchCenter.y,
+      pinchVectorX: pinchVector.x,
+      pinchVectorY: pinchVector.y
     });
     this.zoomManager_.onPdfZoomChange();
+  },
+
+  /**
+   * @private
+   * A callback that's called when an update to a pinch zoom is detected.
+   * @param {!Object} e the pinch event.
+   */
+  onPinchUpdate_: function(e) {
+    // Throttle number of pinch events to one per frame.
+    if (!this.sentPinchEvent_) {
+      this.sentPinchEvent_ = true;
+      window.requestAnimationFrame(function() {
+        this.sentPinchEvent_ = false;
+        this.viewport_.pinchZoom(e);
+      }.bind(this));
+    }
+  },
+
+  /**
+   * @private
+   * A callback that's called when the end of a pinch zoom is detected.
+   * @param {!Object} e the pinch event.
+   */
+  onPinchEnd_: function(e) {
+    // Using rAF for pinch end prevents pinch updates scheduled by rAF getting
+    // sent after the pinch end.
+    window.requestAnimationFrame(function() {
+      this.viewport_.pinchZoomEnd(e);
+    }.bind(this));
   },
 
   /**
