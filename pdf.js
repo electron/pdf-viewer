@@ -262,6 +262,17 @@ function PDFViewer(browserApi) {
 
 PDFViewer.prototype = {
   /**
+   * Sets the callback which will be run when the PDF document has finished
+   * loading. If the document is already loaded, it will be run immediately.
+   * @param {Function} callback the callback to be called.
+   */
+  setLoadCallback: function(callback) {
+    this.loadCallback_ = callback;
+    if (this.loadState_ != LoadState.LOADING && this.loadCallback_)
+      this.loadCallback_(this.loadState_ == LoadState.SUCCESS);
+  },
+
+  /**
    * @private
    * Handle key events. These may come from the user directly or via the
    * scripting API.
@@ -482,6 +493,8 @@ PDFViewer.prototype = {
   sendDocumentLoadedMessage_: function() {
     if (this.loadState_ == LoadState.LOADING)
       return;
+    if (this.loadCallback_)
+      this.loadCallback_(this.loadState_ == LoadState.SUCCESS);
     this.sendScriptingMessage_({
       type: 'documentLoaded',
       load_state: this.loadState_
