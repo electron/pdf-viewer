@@ -119,6 +119,8 @@ function PDFViewer(browserApi) {
   var toolbarEnabled =
       this.paramsParser_.getUiUrlParams(this.originalUrl_).toolbar &&
       !this.isPrintPreview_;
+  var toolbarSpacerEnabled =
+      this.paramsParser_.getUiUrlParams(this.originalUrl_).toolbarSpacer;
 
   // The sizer element is placed behind the plugin element to cause scrollbars
   // to be displayed in the window. It is sized according to the document size
@@ -139,6 +141,7 @@ function PDFViewer(browserApi) {
   var shortWindow = window.innerHeight < PDFViewer.TOOLBAR_WINDOW_MIN_HEIGHT;
   var topToolbarHeight =
       (toolbarEnabled) ? PDFViewer.MATERIAL_TOOLBAR_HEIGHT : 0;
+  topToolbarHeight = (toolbarSpacerEnabled) ? topToolbarHeight : 0
   this.viewport_ = new Viewport(window,
                                 this.sizer_,
                                 this.viewportChanged_.bind(this),
@@ -259,6 +262,44 @@ function PDFViewer(browserApi) {
 
   // Request translated strings.
   cr.sendWithPromise('getStrings').then(this.handleStrings_.bind(this));
+
+  // Setup global functions for scripting from electron
+  global.fitToWidth = function() {
+    this.zoomToolbar_.fitToWidth();
+  }.bind(this);
+
+  global.fitToPage = function() {
+    this.zoomToolbar_.fitToPage();
+  }.bind(this);
+
+  global.zoomIn = function() {
+    this.viewport_.zoomIn.apply(this.viewport_);
+  }.bind(this);
+
+  global.zoomOut = function() {
+    this.viewport_.zoomOut.apply(this.viewport_);
+  }.bind(this);
+
+  global.rotate = function(cw = true) {
+    if (cw) this.rotateClockwise_();
+    else this.rotateCounterClockwise_();
+  }.bind(this);
+
+  global.getMostVisiblePage = function() {
+    return this.viewport_.getMostVisiblePage.apply(this.viewport_);
+  }.bind(this);
+  
+  global.getPageCount = function() {
+    return this.viewport_.pageDimensions_.length;
+  }.bind(this);
+
+  global.goToPage = function(page) {
+    return this.viewport_.goToPage.call(this.viewport_, page);
+  }.bind(this);
+  
+  global.getPageDimensions = function(page) {
+    return this.viewport_.pageDimensions_[page];
+  }.bind(this);
 }
 
 PDFViewer.prototype = {
@@ -541,6 +582,16 @@ PDFViewer.prototype = {
     }
     if (viewportPosition.zoom)
       this.viewport_.setZoom(viewportPosition.zoom);
+    if (viewportPosition.view) {
+      switch (viewportPosition.view.toLowerCase()) {
+        case 'fitw':
+          this.zoomToolbar_.fitToWidth();
+          break;
+        case 'fitp':
+          this.zoomToolbar_.fitToPage();
+          break;
+      }
+    }
   },
 
   /**
