@@ -556,6 +556,7 @@ PDFViewer.prototype = {
       return;
     if (this.loadCallback_)
       this.loadCallback_(this.loadState_ == LoadState.SUCCESS);
+    window.dispatchEvent(new Event('pdf-loaded'))
     this.sendScriptingMessage_({
       type: 'documentLoaded',
       load_state: this.loadState_
