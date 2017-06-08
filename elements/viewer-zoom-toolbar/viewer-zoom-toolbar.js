@@ -39,6 +39,16 @@
       this.$['zoom-out-button'].tooltips = [this.strings.tooltipZoomOut];
     },
 
+    fitToPage: function() {
+      this.fire('fit-to-page');
+      this.$['fit-button'].activeIndex = FIT_TO_WIDTH;
+    },
+    
+    fitToWidth: function() {
+      this.fire('fit-to-width');
+      this.$['fit-button'].activeIndex = FIT_TO_PAGE;
+    },
+
     /**
      * Handle clicks of the fit-button.
      */

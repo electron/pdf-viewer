@@ -248,6 +248,7 @@ function PDFViewer(browserApi) {
   document.addEventListener('keydown', this.handleKeyEvent_.bind(this));
   document.addEventListener('mousemove', this.handleMouseEvent_.bind(this));
   document.addEventListener('mouseout', this.handleMouseEvent_.bind(this));
+  document.addEventListener('wheel', this.handleMouseEvent_.bind(this));
 
   var tabId = this.browserApi_.getStreamInfo().tabId;
   this.navigator_ = new Navigator(
@@ -290,7 +291,8 @@ PDFViewer.prototype = {
 
     var pageUpHandler = function() {
       // Go to the previous page if we are fit-to-page.
-      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE) {
+      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE
+          || (e.ctrlKey || e.metaKey)) {
         this.viewport_.goToPage(this.viewport_.getMostVisiblePage() - 1);
         // Since we do the movement of the page.
         e.preventDefault();
@@ -301,7 +303,8 @@ PDFViewer.prototype = {
     }.bind(this);
     var pageDownHandler = function() {
       // Go to the next page if we are fit-to-page.
-      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE) {
+      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE
+          || (e.ctrlKey || e.metaKey)) {
         this.viewport_.goToPage(this.viewport_.getMostVisiblePage() + 1);
         // Since we do the movement of the page.
         e.preventDefault();
@@ -390,6 +393,16 @@ PDFViewer.prototype = {
           this.toolbar_.selectPageNumber();
         }
         return;
+      case 80: // 'p' key
+        if ((e.ctrlKey || e.metaKey) && e.altKey) {
+          this.zoomToolbar_.fitToPage();
+        }
+        return;
+      case 87: // 'w' key
+        if ((e.ctrlKey || e.metaKey) && e.altKey) {
+          this.zoomToolbar_.fitToWidth();
+        }
+        return;
       case 219:  // Left bracket key.
         if (e.ctrlKey)
           this.rotateCounterClockwise_();
@@ -422,6 +435,13 @@ PDFViewer.prototype = {
       this.toolbarManager_.handleMouseMove(e);
     else if (e.type == 'mouseout')
       this.toolbarManager_.hideToolbarsForMouseOut();
+    else if (e.type == 'wheel' && (e.ctrlKey || e.metaKey)) {
+      if (e.deltaY < 0) {
+        this.viewport_.zoomIn.apply(this.viewport_);
+      } else if (e.deltaY > 0) {
+        this.viewport_.zoomOut.apply(this.viewport_);
+      }
+    }
   },
 
   /**
