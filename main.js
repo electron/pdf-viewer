@@ -49,8 +49,4 @@ var viewer;
 
     createBrowserApi(opts).then(initViewer);
   });
-
-  global.pdfLoaded = new Promise(function(resolve, reject) {
-    window.addEventListener('pdf-loaded', resolve)
-  });
 })()

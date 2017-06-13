@@ -262,44 +262,6 @@ function PDFViewer(browserApi) {
 
   // Request translated strings.
   cr.sendWithPromise('getStrings').then(this.handleStrings_.bind(this));
-
-  // Setup global functions for scripting from electron
-  global.fitToWidth = function() {
-    this.zoomToolbar_.fitToWidth();
-  }.bind(this);
-
-  global.fitToPage = function() {
-    this.zoomToolbar_.fitToPage();
-  }.bind(this);
-
-  global.zoomIn = function() {
-    this.viewport_.zoomIn.apply(this.viewport_);
-  }.bind(this);
-
-  global.zoomOut = function() {
-    this.viewport_.zoomOut.apply(this.viewport_);
-  }.bind(this);
-
-  global.rotate = function(cw = true) {
-    if (cw) this.rotateClockwise_();
-    else this.rotateCounterClockwise_();
-  }.bind(this);
-
-  global.getMostVisiblePage = function() {
-    return this.viewport_.getMostVisiblePage.apply(this.viewport_);
-  }.bind(this);
-  
-  global.getPageCount = function() {
-    return this.viewport_.pageDimensions_.length;
-  }.bind(this);
-
-  global.goToPage = function(page) {
-    return this.viewport_.goToPage.call(this.viewport_, page);
-  }.bind(this);
-  
-  global.getPageDimensions = function(page) {
-    return this.viewport_.pageDimensions_[page];
-  }.bind(this);
 }
 
 PDFViewer.prototype = {
