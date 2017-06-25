@@ -505,7 +505,8 @@ PDFViewer.prototype = {
   sendDocumentLoadedMessage_: function() {
     if (this.loadState_ == LoadState.LOADING)
       return;
-    window.dispatchEvent(new Event('pdf-loaded', this.loadState_))
+    window.dispatchEvent(
+      new CustomEvent('pdf-loaded', { detail: this.loadState_ }))
     this.sendScriptingMessage_({
       type: 'documentLoaded',
       load_state: this.loadState_
