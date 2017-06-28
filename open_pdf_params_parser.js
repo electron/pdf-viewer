@@ -88,10 +88,12 @@ OpenPDFParamsParser.prototype = {
    */
   getUiUrlParams: function(url) {
     var params = this.parseUrlParams_(url);
-    var uiParams = {toolbar: true};
+    var uiParams = {toolbar: true, toolbarSpacer: true};
 
     if ('toolbar' in params && params['toolbar'] == 0)
       uiParams.toolbar = false;
+    if ('toolbar' in params && params['toolbar'] == 2)
+      uiParams.toolbarSpacer = false;
 
     return uiParams;
   },
@@ -119,6 +121,9 @@ OpenPDFParamsParser.prototype = {
 
     if ('zoom' in paramsDictionary)
       this.parseZoomParam_(paramsDictionary['zoom'], viewportPosition);
+      
+    if ('view' in paramsDictionary)
+      viewportPosition['view'] = paramsDictionary['view'];
 
     if (viewportPosition.page === undefined &&
         'nameddest' in paramsDictionary) {

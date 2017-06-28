@@ -119,6 +119,8 @@ function PDFViewer(browserApi) {
   var toolbarEnabled =
       this.paramsParser_.getUiUrlParams(this.originalUrl_).toolbar &&
       !this.isPrintPreview_;
+  var toolbarSpacerEnabled =
+      this.paramsParser_.getUiUrlParams(this.originalUrl_).toolbarSpacer;
 
   // The sizer element is placed behind the plugin element to cause scrollbars
   // to be displayed in the window. It is sized according to the document size
@@ -139,6 +141,7 @@ function PDFViewer(browserApi) {
   var shortWindow = window.innerHeight < PDFViewer.TOOLBAR_WINDOW_MIN_HEIGHT;
   var topToolbarHeight =
       (toolbarEnabled) ? PDFViewer.MATERIAL_TOOLBAR_HEIGHT : 0;
+  topToolbarHeight = (toolbarSpacerEnabled) ? topToolbarHeight : 0
   this.viewport_ = new Viewport(window,
                                 this.sizer_,
                                 this.viewportChanged_.bind(this),
@@ -248,6 +251,7 @@ function PDFViewer(browserApi) {
   document.addEventListener('keydown', this.handleKeyEvent_.bind(this));
   document.addEventListener('mousemove', this.handleMouseEvent_.bind(this));
   document.addEventListener('mouseout', this.handleMouseEvent_.bind(this));
+  document.addEventListener('wheel', this.handleMouseEvent_.bind(this));
 
   var tabId = this.browserApi_.getStreamInfo().tabId;
   this.navigator_ = new Navigator(
@@ -261,17 +265,6 @@ function PDFViewer(browserApi) {
 }
 
 PDFViewer.prototype = {
-  /**
-   * Sets the callback which will be run when the PDF document has finished
-   * loading. If the document is already loaded, it will be run immediately.
-   * @param {Function} callback the callback to be called.
-   */
-  setLoadCallback: function(callback) {
-    this.loadCallback_ = callback;
-    if (this.loadState_ != LoadState.LOADING && this.loadCallback_)
-      this.loadCallback_(this.loadState_ == LoadState.SUCCESS);
-  },
-
   /**
    * @private
    * Handle key events. These may come from the user directly or via the
@@ -290,7 +283,8 @@ PDFViewer.prototype = {
 
     var pageUpHandler = function() {
       // Go to the previous page if we are fit-to-page.
-      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE) {
+      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE
+          || (e.ctrlKey || e.metaKey)) {
         this.viewport_.goToPage(this.viewport_.getMostVisiblePage() - 1);
         // Since we do the movement of the page.
         e.preventDefault();
@@ -301,7 +295,8 @@ PDFViewer.prototype = {
     }.bind(this);
     var pageDownHandler = function() {
       // Go to the next page if we are fit-to-page.
-      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE) {
+      if (this.viewport_.fittingType == Viewport.FittingType.FIT_TO_PAGE
+          || (e.ctrlKey || e.metaKey)) {
         this.viewport_.goToPage(this.viewport_.getMostVisiblePage() + 1);
         // Since we do the movement of the page.
         e.preventDefault();
@@ -390,6 +385,16 @@ PDFViewer.prototype = {
           this.toolbar_.selectPageNumber();
         }
         return;
+      case 80: // 'p' key
+        if ((e.ctrlKey || e.metaKey) && e.altKey) {
+          this.zoomToolbar_.fitToPage();
+        }
+        return;
+      case 87: // 'w' key
+        if ((e.ctrlKey || e.metaKey) && e.altKey) {
+          this.zoomToolbar_.fitToWidth();
+        }
+        return;
       case 219:  // Left bracket key.
         if (e.ctrlKey)
           this.rotateCounterClockwise_();
@@ -422,6 +427,13 @@ PDFViewer.prototype = {
       this.toolbarManager_.handleMouseMove(e);
     else if (e.type == 'mouseout')
       this.toolbarManager_.hideToolbarsForMouseOut();
+    else if (e.type == 'wheel' && (e.ctrlKey || e.metaKey)) {
+      if (e.deltaY < 0) {
+        this.viewport_.zoomIn.apply(this.viewport_);
+      } else if (e.deltaY > 0) {
+        this.viewport_.zoomOut.apply(this.viewport_);
+      }
+    }
   },
 
   /**
@@ -493,8 +505,8 @@ PDFViewer.prototype = {
   sendDocumentLoadedMessage_: function() {
     if (this.loadState_ == LoadState.LOADING)
       return;
-    if (this.loadCallback_)
-      this.loadCallback_(this.loadState_ == LoadState.SUCCESS);
+    window.dispatchEvent(
+      new CustomEvent('pdf-loaded', { detail: this.loadState_ }))
     this.sendScriptingMessage_({
       type: 'documentLoaded',
       load_state: this.loadState_
@@ -521,6 +533,16 @@ PDFViewer.prototype = {
     }
     if (viewportPosition.zoom)
       this.viewport_.setZoom(viewportPosition.zoom);
+    if (viewportPosition.view) {
+      switch (viewportPosition.view.toLowerCase()) {
+        case 'fitw':
+          this.zoomToolbar_.fitToWidth();
+          break;
+        case 'fitp':
+          this.zoomToolbar_.fitToPage();
+          break;
+      }
+    }
   },
 
   /**
