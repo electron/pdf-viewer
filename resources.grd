@@ -18,6 +18,7 @@
       <include name="IDR_PDF_VIEWPORT_JS" file="viewport.js" type="BINDATA" />
       <include name="IDR_PDF_OPEN_PDF_PARAMS_PARSER_JS" file="open_pdf_params_parser.js" type="BINDATA" />
       <include name="IDR_PDF_PDF_FITTING_TYPE_JS" file="pdf_fitting_type.js" type="BINDATA" />
+      <include name="IDR_PDF_PDF_SCRIPTING_API_JS" file="pdf_scripting_api.js" type="BINDATA" />
       <include name="IDR_PDF_NAVIGATOR_JS" file="navigator.js" type="BINDATA" />
       <include name="IDR_PDF_VIEWPORT_SCROLLER_JS" file="viewport_scroller.js" type="BINDATA" />
       <include name="IDR_PDF_GESTURE_DETECTOR_JS" file="gesture_detector.js" type="BINDATA" />
