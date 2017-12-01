@@ -14,36 +14,67 @@ class GestureDetector {
    * @param {!Element} element The element to monitor for touch gestures.
    */
   constructor(element) {
+    /** @private {!Element} */
     this.element_ = element;
 
     this.element_.addEventListener(
-        'touchstart', this.onTouchStart_.bind(this), { passive: false });
+        'touchstart',
+        /** @type {function(!Event)} */ (this.onTouchStart_.bind(this)),
+        {passive: true});
+
+    let boundOnTouch =
+        /** @type {function(!Event)} */ (this.onTouch_.bind(this));
+    this.element_.addEventListener('touchmove', boundOnTouch, {passive: false});
+    this.element_.addEventListener('touchend', boundOnTouch, {passive: true});
     this.element_.addEventListener(
-        'touchmove', this.onTouch_.bind(this), { passive: true });
+        'touchcancel', boundOnTouch, {passive: true});
+
     this.element_.addEventListener(
-        'touchend', this.onTouch_.bind(this), { passive: true });
-    this.element_.addEventListener(
-        'touchcancel', this.onTouch_.bind(this), { passive: true });
+        'wheel',
+        /** @type {function(!Event)} */ (this.onWheel_.bind(this)),
+        {passive: false});
 
     this.pinchStartEvent_ = null;
+    this.lastTouchTouchesCount_ = 0;
+
+    /** @private {?TouchEvent} */
     this.lastEvent_ = null;
 
-    this.listeners_ = new Map([
-      ['pinchstart', []],
-      ['pinchupdate', []],
-      ['pinchend', []]
-    ]);
+    /**
+     * The scale relative to the start of the pinch when handling ctrl-wheels.
+     * null when there is no ongoing pinch.
+     * @private {?number}
+     */
+    this.accumulatedWheelScale_ = null;
+    /**
+     * A timeout ID from setTimeout used for sending the pinchend event when
+     * handling ctrl-wheels.
+     * @private {?number}
+     */
+    this.wheelEndTimeout_ = null;
+
+    /** @private {!Map<string, !Array<!Function>>} */
+    this.listeners_ =
+        new Map([['pinchstart', []], ['pinchupdate', []], ['pinchend', []]]);
   }
 
   /**
    * Add a |listener| to be notified of |type| events.
    * @param {string} type The event type to be notified for.
-   * @param {Function} listener The callback.
+   * @param {!Function} listener The callback.
    */
   addEventListener(type, listener) {
     if (this.listeners_.has(type)) {
       this.listeners_.get(type).push(listener);
     }
+  }
+
+  /**
+   * Returns true if the last touch start was a two finger touch.
+   * @return {boolean} True if the last touch start was a two finger touch.
+   */
+  wasTwoFingerTouch() {
+    return this.lastTouchTouchesCount_ == 2;
   }
 
   /**
@@ -64,17 +95,13 @@ class GestureDetector {
    * @param {!TouchEvent} event Touch event on the element.
    */
   onTouchStart_(event) {
-    // We must preventDefault if there is a two finger touch. By doing so
-    // native pinch-zoom does not interfere with our way of handling the event.
-    if (event.touches.length == 2) {
-      event.preventDefault();
-      this.pinchStartEvent_ = event;
-      this.lastEvent_ = event;
-      this.notify_({
-        type: 'pinchstart',
-        center: GestureDetector.center_(event)
-      });
-    }
+    this.lastTouchTouchesCount_ = event.touches.length;
+    if (!this.wasTwoFingerTouch())
+      return;
+
+    this.pinchStartEvent_ = event;
+    this.lastEvent_ = event;
+    this.notify_({type: 'pinchstart', center: GestureDetector.center_(event)});
   }
 
   /**
@@ -86,12 +113,14 @@ class GestureDetector {
     if (!this.pinchStartEvent_)
       return;
 
+    let lastEvent = /** @type {!TouchEvent} */ (this.lastEvent_);
+
     // Check if the pinch ends with the current event.
     if (event.touches.length < 2 ||
-        this.lastEvent_.touches.length !== event.touches.length) {
-      let startScaleRatio = GestureDetector.pinchScaleRatio_(
-          this.lastEvent_, this.pinchStartEvent_);
-      let center = GestureDetector.center_(this.lastEvent_);
+        lastEvent.touches.length !== event.touches.length) {
+      let startScaleRatio =
+          GestureDetector.pinchScaleRatio_(lastEvent, this.pinchStartEvent_);
+      let center = GestureDetector.center_(lastEvent);
       let endEvent = {
         type: 'pinchend',
         startScaleRatio: startScaleRatio,
@@ -103,9 +132,13 @@ class GestureDetector {
       return;
     }
 
-    let scaleRatio = GestureDetector.pinchScaleRatio_(event, this.lastEvent_);
-    let startScaleRatio = GestureDetector.pinchScaleRatio_(
-        event, this.pinchStartEvent_);
+    // We must preventDefault two finger touchmoves. By doing so native
+    // pinch-zoom does not interfere with our way of handling the event.
+    event.preventDefault();
+
+    let scaleRatio = GestureDetector.pinchScaleRatio_(event, lastEvent);
+    let startScaleRatio =
+        GestureDetector.pinchScaleRatio_(event, this.pinchStartEvent_);
     let center = GestureDetector.center_(event);
     this.notify_({
       type: 'pinchupdate',
@@ -116,6 +149,63 @@ class GestureDetector {
     });
 
     this.lastEvent_ = event;
+  }
+
+  /**
+   * The callback for wheel events on the element.
+   * @private
+   * @param {!WheelEvent} event Wheel event on the element.
+   */
+  onWheel_(event) {
+    // We handle ctrl-wheels to invoke our own pinch zoom. On Mac, synthetic
+    // ctrl-wheels are created from trackpad pinches. We handle these ourselves
+    // to prevent the browser's native pinch zoom. We also use our pinch
+    // zooming mechanism for handling non-synthetic ctrl-wheels. This allows us
+    // to anchor the zoom around the mouse position instead of the scroll
+    // position.
+    if (!event.ctrlKey)
+      return;
+
+    event.preventDefault();
+
+    let wheelScale = Math.exp(-event.deltaY / 100);
+    // Clamp scale changes from the wheel event as they can be
+    // quite dramatic for non-synthetic ctrl-wheels.
+    let scale = Math.min(1.25, Math.max(0.75, wheelScale));
+    let position = {x: event.clientX, y: event.clientY};
+
+    if (this.accumulatedWheelScale_ == null) {
+      this.accumulatedWheelScale_ = 1.0;
+      this.notify_({type: 'pinchstart', center: position});
+    }
+
+    this.accumulatedWheelScale_ *= scale;
+    this.notify_({
+      type: 'pinchupdate',
+      scaleRatio: scale,
+      direction: scale > 1.0 ? 'in' : 'out',
+      startScaleRatio: this.accumulatedWheelScale_,
+      center: position
+    });
+
+    // We don't get any phase information for the ctrl-wheels, so we don't know
+    // when the gesture ends. We'll just use a timeout to send the pinch end
+    // event a short time after the last ctrl-wheel we see.
+    if (this.wheelEndTimeout_ != null) {
+      window.clearTimeout(this.wheelEndTimeout_);
+      this.wheelEndTimeout_ = null;
+    }
+    let gestureEndDelayMs = 100;
+    let endEvent = {
+      type: 'pinchend',
+      startScaleRatio: this.accumulatedWheelScale_,
+      center: position
+    };
+    this.wheelEndTimeout_ = window.setTimeout(function(endEvent) {
+      this.notify_(endEvent);
+      this.wheelEndTimeout_ = null;
+      this.accumulatedWheelScale_ = null;
+    }.bind(this), gestureEndDelayMs, endEvent);
   }
 
   /**
@@ -161,4 +251,4 @@ class GestureDetector {
       y: (touch1.clientY + touch2.clientY) / 2
     };
   }
-};
+}

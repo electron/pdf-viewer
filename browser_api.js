@@ -37,11 +37,13 @@ class BrowserApi {
    *     upon starting the plugin.
    * @param {boolean} manageZoom Whether to manage zoom.
    */
-  constructor(streamInfo, defaultZoom, initialZoom, manageZoom) {
+  constructor(streamInfo, defaultZoom, initialZoom) {
     this.streamInfo_ = streamInfo;
     this.defaultZoom_ = defaultZoom;
     this.initialZoom_ = initialZoom;
-    this.manageZoom_ = manageZoom;
+    this.zoomBehavior_ = streamInfo.embedded ?
+        BrowserApi.ZoomBehavior.PROPAGATE_PARENT :
+        BrowserApi.ZoomBehavior.MANAGE;
   }
 
   /**
@@ -50,13 +52,13 @@ class BrowserApi {
    *     contained in the PDF.
    * @param {boolean} manageZoom Whether to manage zoom.
    */
-  static create(streamInfo, manageZoom) {
+  static create(streamInfo) {
     return Promise.all([
       lookupDefaultZoom(),
       lookupInitialZoom()
     ]).then(function(zoomFactors) {
       return new BrowserApi(
-        streamInfo, zoomFactors[0], zoomFactors[1], manageZoom);
+        streamInfo, zoomFactors[0], zoomFactors[1]);
     });
   }
 
@@ -75,7 +77,7 @@ class BrowserApi {
    *     has been updated.
    */
   setZoom(zoom) {
-    if (!this.manageZoom_)
+    if (this.zoomBehavior_ != BrowserApi.ZoomBehavior.MANAGE)
       return Promise.resolve();
     return cr.sendWithPromise('setZoom', zoom);
   }
@@ -97,18 +99,36 @@ class BrowserApi {
   }
 
   /**
+   * Returns how to manage the zoom.
+   * @return {BrowserApi.ZoomBehavior} How to manage zoom.
+   */
+  getZoomBehavior() {
+    return this.zoomBehavior_;
+  }
+
+  /**
    * Adds an event listener to be notified when the browser zoom changes.
    * @param {function} listener The listener to be called with the new zoom
    *     factor.
    */
   addZoomEventListener(listener) {
-    if (!this.manageZoom_)
+    if (this.zoomBehavior_ != BrowserApi.ZoomBehavior.MANAGE)
       return;
 
     cr.addWebUIListener('onZoomLevelChanged', function(newZoomFactor) {
       listener(newZoomFactor);
     });
   }
+};
+
+/**
+ * Enumeration of ways to manage zoom changes.
+ * @enum {number}
+ */
+BrowserApi.ZoomBehavior = {
+  NONE: 0,
+  MANAGE: 1,
+  PROPAGATE_PARENT: 2
 };
 
 /**
@@ -125,6 +145,6 @@ function createBrowserApi(opts) {
     tabId: -1,
   };
   return new Promise(function(resolve, reject) {
-    resolve(BrowserApi.create(streamInfo, true));
+    resolve(BrowserApi.create(streamInfo));
   });
 }

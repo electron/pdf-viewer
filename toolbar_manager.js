@@ -136,7 +136,7 @@ ToolbarManager.prototype = {
 
   /**
    * Wrapper around Date.now() to make it easily replaceable for testing.
-   * @return {int}
+   * @return {number}
    * @private
    */
   getCurrentTimestamp_: function() {
@@ -233,9 +233,9 @@ ToolbarManager.prototype = {
       return;
     this.toolbar_.hide();
     this.sideToolbarAllowedOnly_ = true;
-    this.sideToolbarAllowedOnlyTimer_ = this.window_.setTimeout(function() {
+    this.sideToolbarAllowedOnlyTimer_ = this.window_.setTimeout(() => {
       this.sideToolbarAllowedOnlyTimer_ = null;
-    }.bind(this), FORCE_HIDE_TIMEOUT);
+    }, FORCE_HIDE_TIMEOUT);
   },
 
   /**

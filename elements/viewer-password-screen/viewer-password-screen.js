@@ -8,50 +8,37 @@ Polymer({
   properties: {
     invalid: Boolean,
 
-    active: {
-      type: Boolean,
-      value: false,
-      observer: 'activeChanged'
-    },
-
     strings: Object,
   },
 
-  ready: function() {
-    this.activeChanged();
+  get active() {
+    return this.$.dialog.open;
   },
 
-  accept: function() {
-    this.active = false;
+  show: function() {
+    this.$.dialog.showModal();
+  },
+
+  close: function() {
+    if (this.active)
+      this.$.dialog.close();
   },
 
   deny: function() {
-    this.$.password.disabled = false;
+    var password = /** @type {!PaperInputElement} */ (this.$.password);
+    password.disabled = false;
     this.$.submit.disabled = false;
     this.invalid = true;
-    this.$.password.focus();
-    this.$.password.select();
-  },
-
-  handleKey: function(e) {
-    if (e.keyCode == 13)
-      this.submit();
+    password.focus();
+    password.inputElement.select();
   },
 
   submit: function() {
-    if (this.$.password.value.length == 0)
+    var password = /** @type {!PaperInputElement} */ (this.$.password);
+    if (password.value.length == 0)
       return;
-    this.$.password.disabled = true;
+    password.disabled = true;
     this.$.submit.disabled = true;
-    this.fire('password-submitted', {password: this.$.password.value});
+    this.fire('password-submitted', {password: password.value});
   },
-
-  activeChanged: function() {
-    if (this.active) {
-      this.$.dialog.open();
-      this.$.password.focus();
-    } else {
-      this.$.dialog.close();
-    }
-  }
 });

@@ -7,10 +7,12 @@
 /**
  * Creates a new NavigatorDelegate for calling browser-specific functions to
  * do the actual navigating.
- * @param {boolean} isInTab Indicates if the PDF viewer is displayed in a tab.
+ * @param {number} tabId The tab ID of the PDF viewer or -1 if the viewer is
+ *    not displayed in a tab.
+ * @constructor
  */
-function NavigatorDelegate(isInTab) {
-  this.isInTab_ = isInTab;
+function NavigatorDelegate(tabId) {
+  this.tabId_ = tabId;
 }
 
 /**
@@ -21,6 +23,7 @@ function NavigatorDelegate(isInTab) {
  * @param {Object} navigatorDelegate The object with callback functions that
  *    get called when navigation happens in the current tab, a new tab,
  *    and a new window.
+ * @constructor
  */
 function Navigator(originalUrl, viewport, paramsParser, navigatorDelegate) {
   this.originalUrl_ = originalUrl;
@@ -38,8 +41,8 @@ NavigatorDelegate.prototype = {
   navigateInCurrentTab: function(url) {
     // When the PDFviewer is inside a browser tab, prefer the tabs API because
     // it can navigate from one file:// URL to another.
-    if (chrome.tabs && this.isInTab_)
-      chrome.tabs.update({url: url});
+    if (chrome.tabs && this.tabId_ != -1)
+      chrome.tabs.update(this.tabId_, {url: url});
     else
       window.location.href = url;
   },
@@ -90,7 +93,6 @@ Navigator.WindowOpenDisposition = {
 
 Navigator.prototype = {
   /**
-   * @private
    * Function to navigate to the given URL. This might involve navigating
    * within the PDF page or opening a new url (in the same tab or a new tab).
    * @param {string} url The URL to navigate to.
@@ -172,15 +174,13 @@ Navigator.prototype = {
   /**
    * @private
    * Checks if the URL starts with a scheme and is not just a scheme.
-   * @param {string} The input URL
+   * @param {string} url The input URL
    * @return {boolean} Whether the url is valid.
    */
   isValidUrl_: function(url) {
     // Make sure |url| starts with a valid scheme.
-    if (!url.startsWith('http://') &&
-        !url.startsWith('https://') &&
-        !url.startsWith('ftp://') &&
-        !url.startsWith('file://') &&
+    if (!url.startsWith('http://') && !url.startsWith('https://') &&
+        !url.startsWith('ftp://') && !url.startsWith('file://') &&
         !url.startsWith('mailto:')) {
       return false;
     }
@@ -191,11 +191,8 @@ Navigator.prototype = {
 
 
     // Make sure |url| is not only a scheme.
-    if (url == 'http://' ||
-        url == 'https://' ||
-        url == 'ftp://' ||
-        url == 'file://' ||
-        url == 'mailto:') {
+    if (url == 'http://' || url == 'https://' || url == 'ftp://' ||
+        url == 'file://' || url == 'mailto:') {
       return false;
     }
 
@@ -205,7 +202,7 @@ Navigator.prototype = {
   /**
    * @private
    * Attempt to figure out what a URL is when there is no scheme.
-   * @param {string} The input URL
+   * @param {string} url The input URL
    * @return {string} The URL with a scheme or the original URL if it is not
    *     possible to determine the scheme.
    */
@@ -224,8 +221,8 @@ Navigator.prototype = {
       var schemeEndIndex = this.originalUrl_.indexOf('://');
       var firstSlash = this.originalUrl_.indexOf('/', schemeEndIndex + 3);
       // e.g. http://www.foo.com/bar -> http://www.foo.com
-      var domain = firstSlash != -1 ?
-          this.originalUrl_.substr(0, firstSlash) : this.originalUrl_;
+      var domain = firstSlash != -1 ? this.originalUrl_.substr(0, firstSlash) :
+                                      this.originalUrl_;
       return domain + url;
     }
 
@@ -243,7 +240,8 @@ Navigator.prototype = {
     if (!isRelative) {
       var domainSeparatorIndex = url.indexOf('/');
       var domainName = domainSeparatorIndex == -1 ?
-          url : url.substr(0, domainSeparatorIndex);
+          url :
+          url.substr(0, domainSeparatorIndex);
       var domainDotCount = (domainName.match(/\./g) || []).length;
       if (domainDotCount < 2)
         isRelative = true;
@@ -251,8 +249,8 @@ Navigator.prototype = {
 
     if (isRelative) {
       var slashIndex = this.originalUrl_.lastIndexOf('/');
-      var path = slashIndex != -1 ?
-          this.originalUrl_.substr(0, slashIndex) : this.originalUrl_;
+      var path = slashIndex != -1 ? this.originalUrl_.substr(0, slashIndex) :
+                                    this.originalUrl_;
       return path + '/' + url;
     }
 
