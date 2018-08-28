@@ -1,0 +1,14 @@
+group("pdf_viewer") {
+  deps = [ ":pdf_viewer"]
+}
+
+action("pdf_viewer") {
+  script = "vendor/grit/grit.py"
+  outputs = [
+    "$target_gen_dir/grit/pdf_viewer_resources.h",
+    "$target_gen_dir/grit/pdf_viewer_resources_map.cc",
+    "$target_gen_dir/grit/pdf_viewer_resources_map.h",
+    "$root_out_dir/pdf_viewer_resources.pak",
+  ],
+  args = [ "-i", "resources.grd",  "build", "-o", "$target_gen_dir/grit" ]
+}
