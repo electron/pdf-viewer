@@ -1,3 +1,0 @@
-[submodule "vendor/grit"]
-	path = vendor/grit
-	url = https://chromium.googlesource.com/chromium/src/tools/grit.git

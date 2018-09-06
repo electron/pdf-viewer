@@ -1,14 +1,18 @@
+import("//tools/grit/grit_rule.gni")
+
 group("pdf_viewer") {
-  deps = [ ":pdf_viewer"]
+  deps = [
+    ":pdf_viewer_build"
+  ]
 }
 
-action("pdf_viewer") {
-  script = "vendor/grit/grit.py"
+grit("pdf_viewer_build") {
+  source = "resources.grd"
   outputs = [
-    "$target_gen_dir/grit/pdf_viewer_resources.h",
-    "$target_gen_dir/grit/pdf_viewer_resources_map.cc",
-    "$target_gen_dir/grit/pdf_viewer_resources_map.h",
-    "$root_out_dir/pdf_viewer_resources.pak",
-  ],
-  args = [ "-i", "resources.grd",  "build", "-o", "$target_gen_dir/grit" ]
+    "pdf_viewer_resources.h",
+    "pdf_viewer_resources_map.cc",
+    "pdf_viewer_resources_map.h",
+    "pdf_viewer_resources.pak",
+  ]
+  resource_ids = ""
 }

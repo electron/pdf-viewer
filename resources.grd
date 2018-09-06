@@ -6,7 +6,7 @@
     </output>
     <output filename="pdf_viewer_resources_map.cc" type="resource_file_map_source" />
     <output filename="pdf_viewer_resources_map.h" type="resource_map_header" />
-    <output filename="../../pdf_viewer_resources.pak" type="data_package" />
+    <output filename="pdf_viewer_resources.pak" type="data_package" />
   </outputs>
   <release seq="1">
     <includes>
